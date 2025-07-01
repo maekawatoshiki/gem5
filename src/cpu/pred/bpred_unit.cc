@@ -47,7 +47,12 @@
 #include "arch/generic/pcstate.hh"
 #include "base/compiler.hh"
 #include "base/trace.hh"
+#include "cpu/o3/cpu.hh"
+#include "cpu/reg_class.hh"
+#include "cpu/thread_context.hh"
 #include "debug/Branch.hh"
+#include "sim/root.hh"
+#include "sim/sim_object.hh"
 
 namespace gem5
 {
@@ -360,6 +365,33 @@ BPredUnit::update(const InstSeqNum &done_sn, ThreadID tid)
 void
 BPredUnit::commitBranch(ThreadID tid, PredictorHistory* &hist)
 {
+    static o3::CPU *cpu = nullptr;
+
+    if (cpu == nullptr) {
+        const std::string bp_name = name();
+        const size_t last_dot = bp_name.find_last_of('.');
+        const std::string cpu_name = last_dot == std::string::npos ?
+            "system.cpu" : bp_name.substr(0, last_dot); // remove '.branchPred'
+        SimObject *cpu_so = Root::root()->find(cpu_name.c_str());
+        assert(cpu_so);
+        cpu = dynamic_cast<o3::CPU *>(cpu_so);
+        assert(cpu);
+    } else {
+        ThreadContext *tc = cpu->getContext(tid);
+        printf("[tid:%i] [sn:%lu] Committing branch. Regs:\n",
+               tid, hist->seqNum);
+
+        const auto &regClasses = tc->getIsaPtr()->regClasses();
+        const RegClass *intRegClass = regClasses.at(IntRegClass);
+        const size_t numIntRegs = intRegClass->numRegs();
+
+        printf("  Int regs (%lu total):\n", numIntRegs);
+        for (int i = 0; i < numIntRegs; ++i) {
+            RegId regId(*intRegClass, i);
+            RegVal regVal = tc->getReg(regId);
+            printf("    R%d: 0x%lx\n", i, regVal);
+        }
+    }
 
     stats.committed[tid][hist->type]++;
     if (hist->mispredict) {
