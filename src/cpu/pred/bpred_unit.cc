@@ -391,6 +391,35 @@ BPredUnit::commitBranch(ThreadID tid, PredictorHistory* &hist)
             RegVal regVal = tc->getReg(regId);
             printf("    R%d: 0x%lx\n", i, regVal);
         }
+
+#if 0
+        const RegClass *floatRegClass = regClasses.at(FloatRegClass);
+        // It seems numFloatRegs == 0
+        const size_t numFloatRegs = floatRegClass->numRegs();
+
+        printf("  Float regs (%lu total):\n", numFloatRegs);
+        for (int i = 0; i < std::min((int)numFloatRegs, 8); ++i) {
+            RegId regId(*floatRegClass, i);
+            RegVal regVal = tc->getReg(regId);
+            printf("    F%d: 0x%lx\n", i, regVal);
+        }
+#endif
+
+        const RegClass *vecRegClass = regClasses.at(VecRegClass);
+        const size_t numVecRegs = vecRegClass->numRegs();
+
+        printf("  Vec regs (%lu total):\n", numVecRegs);
+        for (int i = 0; i < numVecRegs; ++i) {
+            RegId regId(*vecRegClass, i);
+            // tc->getReg() raises an error on vector registers,
+            // so we use cpu->getArchReg() instead.
+            uint64_t vecBuffer[2] = {0}; // 128 bit buffer
+            cpu->getArchReg(regId, vecBuffer, tid);
+            printf("    V%d: %016lx %016lx (%lf %lf)\n",
+                   i, vecBuffer[1], vecBuffer[0],
+                   *reinterpret_cast<double *>(&vecBuffer[1]),
+                   *reinterpret_cast<double *>(&vecBuffer[0]));
+        }
     }
 
     stats.committed[tid][hist->type]++;
